@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -182,7 +182,7 @@ def main() -> None:
     # Pull a buffer around the years so month-end computations work
     if args.auto_years:
         start = "1900-01-01"
-        end = (datetime.utcnow().date() + timedelta(days=1)).strftime("%Y-%m-%d")
+        end = (datetime.now(timezone.utc).date() + timedelta(days=1)).strftime("%Y-%m-%d")
     else:
         start = f"{args.start_year - 1}-12-01"
         end = f"{args.end_year}-03-31"
