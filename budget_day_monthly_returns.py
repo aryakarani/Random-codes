@@ -43,7 +43,7 @@ def month_end_close(df: pd.DataFrame) -> pd.Series:
     """Month-end close series (last available close each month)."""
     if df.empty:
         return pd.Series(dtype=float)
-    return df["Close"].resample("M").last()
+    return df["Close"].resample("ME").last()
 
 
 def compute_monthly_returns(df: pd.DataFrame, years: list[int]) -> pd.DataFrame:
