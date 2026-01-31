@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -10,6 +10,7 @@ from tabulate import tabulate
 
 DEFAULT_SYMBOLS = ["BEL.NS", "RVNL.NS", "RELIANCE.NS", "^NSEI"]
 REQUIRED_COLUMNS = ["Open", "High", "Low", "Close"]
+FALLBACK_SUFFIXES = [".NS", ".BO"]
 
 
 def normalize_index(df: pd.DataFrame) -> pd.DataFrame:
@@ -23,6 +24,12 @@ def normalize_index(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df.index = idx
     return df.sort_index()
+
+
+def symbol_candidates(sym: str) -> list[str]:
+    if "." in sym or sym.startswith("^"):
+        return [sym]
+    return [sym] + [f"{sym}{suffix}" for suffix in FALLBACK_SUFFIXES]
 
 
 def next_trading_day(df: pd.DataFrame, date: pd.Timestamp) -> pd.Timestamp | None:
@@ -98,17 +105,33 @@ def compute_budget_day_intraday(
     return pd.DataFrame(rows)
 
 
-def download_symbol(sym: str, start: str, end: str) -> pd.DataFrame:
-    df = yf.download(sym, start=start, end=end, auto_adjust=False, progress=False)
+def derive_year_range(df: pd.DataFrame, years_back: int | None) -> tuple[int, int]:
     if df.empty:
-        return df
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-    missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-    if missing:
-        raise ValueError(f"{sym}: Missing columns from Yahoo data: {missing}")
-    df = df[REQUIRED_COLUMNS].dropna()
-    return normalize_index(df)
+        raise ValueError("Cannot derive year range from empty data.")
+    first_year = int(df.index.min().year)
+    last_year = int(df.index.max().year)
+    if years_back and years_back > 0:
+        start_year = max(first_year, last_year - years_back + 1)
+    else:
+        start_year = first_year
+    return start_year, last_year
+
+
+def download_symbol(sym: str, start: str, end: str) -> tuple[pd.DataFrame, str]:
+    last_df = pd.DataFrame()
+    for candidate in symbol_candidates(sym):
+        df = yf.download(candidate, start=start, end=end, auto_adjust=False, progress=False)
+        if df.empty:
+            last_df = df
+            continue
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing:
+            raise ValueError(f"{candidate}: Missing columns from Yahoo data: {missing}")
+        df = df[REQUIRED_COLUMNS].dropna()
+        return normalize_index(df), candidate
+    return last_df, sym
 
 
 def ensure_output_dir(prefix: str) -> None:
@@ -132,6 +155,17 @@ def main() -> None:
     ap.add_argument("--budget_month", type=int, default=2)
     ap.add_argument("--budget_day", type=int, default=1)
     ap.add_argument(
+        "--auto_years",
+        action="store_true",
+        help="Derive year range from available data (uses --years_back).",
+    )
+    ap.add_argument(
+        "--years_back",
+        type=int,
+        default=5,
+        help="When using --auto_years, keep up to N most recent years (<=0 = all).",
+    )
+    ap.add_argument(
         "--save_csv",
         type=str,
         default="",
@@ -139,14 +173,19 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    if args.start_year > args.end_year:
+    if not args.auto_years and args.start_year > args.end_year:
         ap.error("--start_year must be <= --end_year")
 
+    years_back = args.years_back if args.years_back and args.years_back > 0 else None
     years = list(range(args.start_year, args.end_year + 1))
 
     # Pull a buffer around the years so month-end computations work
-    start = f"{args.start_year - 1}-12-01"
-    end = f"{args.end_year}-03-31"
+    if args.auto_years:
+        start = "1900-01-01"
+        end = (datetime.utcnow().date() + timedelta(days=1)).strftime("%Y-%m-%d")
+    else:
+        start = f"{args.start_year - 1}-12-01"
+        end = f"{args.end_year}-03-31"
 
     monthly_tables = {}
     budget_tables = {}
@@ -154,35 +193,43 @@ def main() -> None:
     ensure_output_dir(args.save_csv.rstrip("/"))
 
     for sym in args.symbols:
-        df = download_symbol(sym, start=start, end=end)
+        df, resolved = download_symbol(sym, start=start, end=end)
         if df.empty:
             print(f"\n{sym}: No data returned.")
             continue
 
+        if args.auto_years:
+            start_year, end_year = derive_year_range(df, years_back)
+            years = list(range(start_year, end_year + 1))
+        else:
+            start_year, end_year = args.start_year, args.end_year
+
         monthly = compute_monthly_returns(df, years)
         budget = compute_budget_day_intraday(df, years, args.budget_month, args.budget_day)
 
-        monthly_tables[sym] = monthly
-        budget_tables[sym] = budget
+        monthly_tables[resolved] = monthly
+        budget_tables[resolved] = budget
 
         print("\n" + "=" * 90)
-        print(f"{sym} — Jan/Feb monthly % change (close-to-close monthly return)")
+        if resolved != sym:
+            print(f"{sym}: resolved to {resolved} for Yahoo data.")
+        print(f"{resolved} — Jan/Feb monthly % change (close-to-close monthly return)")
         print(tabulate(monthly, headers="keys", tablefmt="github", floatfmt=".3f"))
 
         print(
             "\n"
-            + f"{sym} — Budget day intraday % (Open→Close) for "
-            f"{args.budget_day:02d}-{args.budget_month:02d}-{args.start_year}..{args.end_year}"
+            + f"{resolved} — Budget day intraday % (Open→Close) for "
+            f"{args.budget_day:02d}-{args.budget_month:02d}-{start_year}..{end_year}"
         )
         print(tabulate(budget, headers="keys", tablefmt="github", floatfmt=".3f"))
 
         if args.save_csv:
             prefix = args.save_csv.rstrip("/")
             monthly.to_csv(
-                f"{prefix}_{sym.replace('^', '')}_monthly_jan_feb.csv", index=False
+                f"{prefix}_{resolved.replace('^', '')}_monthly_jan_feb.csv", index=False
             )
             budget.to_csv(
-                f"{prefix}_{sym.replace('^', '')}_budget_intraday.csv", index=False
+                f"{prefix}_{resolved.replace('^', '')}_budget_intraday.csv", index=False
             )
 
 
