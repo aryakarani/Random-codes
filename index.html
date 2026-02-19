@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Couple Compatibility Test</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section class="card">
+      <header class="hero">
+        <p class="kicker">Research-informed reflection tool</p>
+        <h1>Couple Compatibility Test</h1>
+        <p class="subtitle">Pair with your partner using an Invite ID, answer 15 questions, and view alignment insights together.</p>
+      </header>
+
+      <div id="globalMessage" class="message hidden" role="status" aria-live="polite"></div>
+
+      <section id="screen-landing" class="screen active">
+        <div class="panel">
+          <h2>Your Invite ID</h2>
+          <p class="muted">Share this ID so your partner can join your session.</p>
+          <div class="invite-box">
+            <span id="inviteIdDisplay">Creating...</span>
+          </div>
+          <div class="row actions">
+            <button id="copyInviteBtn" class="btn btn-secondary">Copy ID</button>
+            <a id="whatsappShareBtn" class="btn btn-primary" target="_blank" rel="noopener">Share on WhatsApp</a>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>I have an Invite ID</h2>
+          <label for="joinInviteInput" class="muted">Enter your partner's Invite ID</label>
+          <div class="row">
+            <input id="joinInviteInput" type="text" placeholder="e.g. 4F2K9M" maxlength="10" autocomplete="off" />
+            <button id="joinInviteBtn" class="btn btn-primary">Join</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="goToPairingBtn" class="btn btn-ghost">Continue to Pairing Status</button>
+        </div>
+      </section>
+
+      <section id="screen-pairing" class="screen">
+        <h2>Pairing Status</h2>
+        <p id="pairingStatusText" class="muted">Checking session state...</p>
+        <div class="status-grid">
+          <div class="status-pill"><span>A</span><strong id="participantAStatus">Not joined</strong></div>
+          <div class="status-pill"><span>B</span><strong id="participantBStatus">Not joined</strong></div>
+        </div>
+        <div class="row actions">
+          <button id="startTestBtn" class="btn btn-primary" disabled>Start Test</button>
+          <button id="backToLandingBtn" class="btn btn-secondary">Back</button>
+        </div>
+      </section>
+
+      <section id="screen-questionnaire" class="screen">
+        <div class="question-top">
+          <h2>Questionnaire</h2>
+          <div class="progress-text" id="questionProgressText">Q1/15</div>
+        </div>
+        <div class="progress-track"><div id="progressBar" class="progress-fill"></div></div>
+
+        <article class="question-card">
+          <p id="questionCategory" class="question-category"></p>
+          <h3 id="questionText"></h3>
+          <div id="likertOptions" class="likert"></div>
+        </article>
+
+        <div class="likert-legend">
+          <span>1 = Strongly disagree</span>
+          <span>7 = Strongly agree</span>
+        </div>
+
+        <div class="row actions">
+          <button id="prevQuestionBtn" class="btn btn-secondary">Previous</button>
+          <button id="nextQuestionBtn" class="btn btn-primary">Next</button>
+        </div>
+      </section>
+
+      <section id="screen-results" class="screen">
+        <h2>Your Compatibility Results</h2>
+        <div class="overall-score">
+          <span>Overall</span>
+          <strong id="overallScore">--%</strong>
+        </div>
+        <div id="breakdownGrid" class="breakdown-grid"></div>
+
+        <div class="insight-grid">
+          <div>
+            <h3>Where you align</h3>
+            <ul id="strengthsList"></ul>
+          </div>
+          <div>
+            <h3>Potential friction points</h3>
+            <ul id="frictionList"></ul>
+          </div>
+        </div>
+
+        <p class="disclaimer">For reflection only — this tool is research-informed but not a clinical diagnosis, therapy, or crisis service.</p>
+
+        <div class="row actions">
+          <button id="deleteSessionBtn" class="btn btn-danger">Delete session data</button>
+          <button id="newSessionBtn" class="btn btn-primary">Create New Invite</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
